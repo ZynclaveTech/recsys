@@ -195,16 +195,14 @@ def test_average_precision_golden_value() -> None:
     #   hit at rank 3 -> precision 2/3 = 0.666...
     #   denominator   -> min(2, 4) = 2
     expected = (1.0 + 2 / 3) / 2
-    assert average_precision_at_k(
-        ["a", "b", "c", "d"], {"a", "c"}, 4
-    ) == pytest.approx(expected)
+    assert average_precision_at_k(["a", "b", "c", "d"], {"a", "c"}, 4) == pytest.approx(
+        expected
+    )
     assert expected == pytest.approx(0.8333333, abs=1e-6)
 
 
 def test_average_precision_is_one_for_ideal_ordering() -> None:
-    assert average_precision_at_k(["a", "b", "c"], {"a", "b"}, 3) == pytest.approx(
-        1.0
-    )
+    assert average_precision_at_k(["a", "b", "c"], {"a", "b"}, 3) == pytest.approx(1.0)
 
 
 def test_average_precision_rewards_earlier_hits() -> None:

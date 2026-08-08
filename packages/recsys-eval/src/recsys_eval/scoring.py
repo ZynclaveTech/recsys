@@ -200,12 +200,7 @@ def score(
 
     pool_size = len(fixture.candidates)
     values = {key: total / scored_users for key, total in totals.items()}
-    values.update(
-        {
-            f"coverage@{k}": min(len(surfaced[k]) / pool_size, 1.0)
-            for k in ks
-        }
-    )
+    values.update({f"coverage@{k}": min(len(surfaced[k]) / pool_size, 1.0) for k in ks})
 
     return Scores(
         values=values,

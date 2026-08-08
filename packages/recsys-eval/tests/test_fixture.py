@@ -34,9 +34,7 @@ def ev(
     return Interaction(user=user, item=item, kind=kind, weight=weight, at=at)
 
 
-def build(
-    events: list[Interaction[str, str]], **kwargs: object
-) -> Fixture[str, str]:
+def build(events: list[Interaction[str, str]], **kwargs: object) -> Fixture[str, str]:
     params: dict[str, object] = {
         "candidates": POOL,
         "holdout_start": CUTOFF,
@@ -301,9 +299,7 @@ def test_candidate_pool_is_truncated_from_the_head() -> None:
 
 def test_label_coverage_reports_the_recall_ceiling() -> None:
     """``i9`` is labelled but not in the pool: Recall can never exceed 0.5."""
-    fixture = build(
-        [ev("u1", "i0", at=BEFORE), ev("u1", "i1"), ev("u1", "i9")]
-    )
+    fixture = build([ev("u1", "i0", at=BEFORE), ev("u1", "i1"), ev("u1", "i9")])
     assert fixture.label_coverage == pytest.approx(0.5)
 
 

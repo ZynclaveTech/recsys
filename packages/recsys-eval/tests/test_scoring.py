@@ -47,15 +47,11 @@ def make_fixture(
     events: list[Interaction[str, str]] = []
     for user, items in labels.items():
         events.append(
-            Interaction(
-                user=user, item="i0", kind="view", weight=0.1, at=BEFORE
-            )
+            Interaction(user=user, item="i0", kind="view", weight=0.1, at=BEFORE)
         )
         for item in items:
             events.append(
-                Interaction(
-                    user=user, item=item, kind="like", weight=1.0, at=DURING
-                )
+                Interaction(user=user, item=item, kind="like", weight=1.0, at=DURING)
             )
     return Fixture.from_interactions(
         events,
@@ -76,9 +72,7 @@ def test_pool_ranker_satisfies_the_protocol() -> None:
 
 
 def test_reports_every_requested_metric_at_every_k() -> None:
-    scores = score(
-        PoolRanker(), make_fixture(), metrics=["ndcg", "recall"], ks=[2, 4]
-    )
+    scores = score(PoolRanker(), make_fixture(), metrics=["ndcg", "recall"], ks=[2, 4])
     assert set(scores.values) == {
         "ndcg@2",
         "ndcg@4",
@@ -101,9 +95,7 @@ def test_golden_macro_average() -> None:
     u1's label is at rank 1: NDCG 1.0. u2's is at rank 2: 1/log2(3).
     Macro-average is their mean; Recall is 1.0 for both.
     """
-    scores = score(
-        PoolRanker(), make_fixture(), metrics=["ndcg", "recall"], ks=[2]
-    )
+    scores = score(PoolRanker(), make_fixture(), metrics=["ndcg", "recall"], ks=[2])
     expected_ndcg = (1.0 + 1.0 / math.log2(3)) / 2
     assert scores["ndcg@2"] == pytest.approx(expected_ndcg)
     assert scores["recall@2"] == pytest.approx(1.0)

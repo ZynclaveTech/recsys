@@ -2,13 +2,51 @@
 
 Offline evaluation and promotion gating for recommender systems.
 
-> **Status: alpha.** The metrics layer is complete and tested. The fixture,
-> ranker protocol, scoring, and gate layers are in progress.
+> **Status: alpha.** Feature-complete for v0.1 — metrics, fixture, ranker
+> protocol, scoring, preflight checks, and promotion gate. The API may still
+> move before 1.0.
 
 Built around one claim: the useful question is usually not *"how good is this
 model"* but *"is this candidate worse than the one already in production"*.
 Those need different machinery, and conflating them is how teams end up with a
 dashboard full of numbers nobody can act on.
+
+## The whole loop
+
+```python
+from recsys_eval import Fixture, Interaction, RelevancePolicy, preflight
+from recsys_eval.gate import GatePolicy, run_gate
+
+fixture = Fixture.from_interactions(
+    events,  # your logs, as Interaction(...)
+    candidates=serving_index,  # your pool, passed explicitly
+    holdout_start=cutoff,
+    holdout_end=cutoff + timedelta(days=7),
+    policy=RelevancePolicy(positive_kinds=frozenset({"like", "share", "save"})),
+)
+
+preflight(build_fixture, candidate, incumbent)  # prove the harness works
+
+verdict = run_gate(
+    candidate,
+    incumbent,
+    fixture,
+    policy=GatePolicy(gated_metrics=["ndcg@10", "recall@50"]),
+    recorder=save_audit_row,
+)
+if verdict.promoted:
+    deploy(candidate)
+```
+
+Implementing a ranker is two methods:
+
+```python
+class MyRanker:
+    def prepare(self, candidates): ...  # build an index, once
+    def rank(self, user, k, exclude): ...  # return bare ids, best first
+```
+
+A runnable end-to-end version lives in `examples/quickstart.py`.
 
 ## Install
 
@@ -30,7 +68,7 @@ ndcg_at_k(["post_a", "post_b"], {"post_a": 3.0, "post_b": 1.0}, k=10)
 
 # Relevant items your candidate index never even offered stay in the
 # denominator, so a shrinking index shows up as a falling score.
-recall_at_k(["post_a"], {"post_a", "post_c"}, k=10)   # 0.5, not 1.0
+recall_at_k(["post_a"], {"post_a", "post_c"}, k=10)  # 0.5, not 1.0
 
 # Read this beside NDCG. A ranker can raise NDCG by collapsing onto
 # universally-popular items, and every per-user metric is blind to that.

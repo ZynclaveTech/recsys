@@ -62,9 +62,7 @@ class Ranker(Protocol[UserT_contra, ItemT]):
         """
         ...
 
-    def rank(
-        self, user: UserT_contra, k: int, exclude: Set[ItemT]
-    ) -> Sequence[ItemT]:
+    def rank(self, user: UserT_contra, k: int, exclude: Set[ItemT]) -> Sequence[ItemT]:
         """Return up to ``k`` item ids for ``user``, best first.
 
         Return **bare ids**, not rows or dicts. Scoring reads the sequence

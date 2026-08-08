@@ -39,9 +39,7 @@ class DriftingRanker:
 
     def prepare(self, candidates: Sequence[str]) -> None:
         tick = next(self.clock)
-        self._ordered = list(candidates)[tick % 2 :] + list(candidates)[
-            : tick % 2
-        ]
+        self._ordered = list(candidates)[tick % 2 :] + list(candidates)[: tick % 2]
 
     def rank(self, user: str, k: int, exclude: Set[str]) -> Sequence[str]:
         return [i for i in self._ordered if i not in exclude][:k]
@@ -66,9 +64,7 @@ def test_deterministic_catches_clock_dependent_features() -> None:
 
 def test_deterministic_error_names_the_metrics_that_moved() -> None:
     with pytest.raises(CheckFailed) as excinfo:
-        assert_deterministic(
-            DriftingRanker(), make_fixture(), metrics=["ndcg"], ks=[2]
-        )
+        assert_deterministic(DriftingRanker(), make_fixture(), metrics=["ndcg"], ks=[2])
     assert "ndcg@2" in str(excinfo.value)
 
 
@@ -118,9 +114,7 @@ def test_reproducible_catches_non_deterministic_truncation() -> None:
     orders = itertools.cycle([POOL, list(reversed(POOL))])
 
     def build() -> Fixture[str, str]:
-        return dataclasses.replace(
-            make_fixture(), candidates=tuple(next(orders))[:2]
-        )
+        return dataclasses.replace(make_fixture(), candidates=tuple(next(orders))[:2])
 
     with pytest.raises(CheckFailed) as excinfo:
         assert_reproducible(build)
@@ -157,9 +151,7 @@ def test_unit_interval_passes_for_real_scores() -> None:
         (float("nan"), "NaN"),
     ],
 )
-def test_unit_interval_rejects_impossible_values(
-    value: float, hint: str
-) -> None:
+def test_unit_interval_rejects_impossible_values(value: float, hint: str) -> None:
     with pytest.raises(CheckFailed) as excinfo:
         assert_within_unit_interval(Scores(values={"ndcg@10": value}))
     message = str(excinfo.value)

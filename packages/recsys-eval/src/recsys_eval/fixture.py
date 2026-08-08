@@ -179,9 +179,7 @@ class Fixture(Generic[UserT, ItemT]):
         if max_users is not None and max_users <= 0:
             raise ValueError(f"max_users must be positive, got {max_users}.")
         if max_candidates is not None and max_candidates <= 0:
-            raise ValueError(
-                f"max_candidates must be positive, got {max_candidates}."
-            )
+            raise ValueError(f"max_candidates must be positive, got {max_candidates}.")
 
         pool: tuple[ItemT, ...] = tuple(candidates[:max_candidates])
 
@@ -218,11 +216,7 @@ class Fixture(Generic[UserT, ItemT]):
             else:
                 items[event.item] = max(prior, gain)
 
-        eligible = [
-            user
-            for user in graded
-            if not require_history or user in seen
-        ]
+        eligible = [user for user in graded if not require_history or user in seen]
         selected = _stable_sorted(eligible, what="User ids")
 
         if max_users is not None and len(selected) > max_users:
@@ -244,9 +238,7 @@ class Fixture(Generic[UserT, ItemT]):
         }
 
         labelled = {item for items in ground_truth.values() for item in items}
-        coverage = (
-            len(labelled & set(pool)) / len(labelled) if labelled else 0.0
-        )
+        coverage = len(labelled & set(pool)) / len(labelled) if labelled else 0.0
 
         return cls(
             holdout_start=holdout_start,

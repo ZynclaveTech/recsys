@@ -19,6 +19,13 @@ from recsys_eval.checks import (
     preflight,
 )
 from recsys_eval.fixture import Fixture
+from recsys_eval.gate import (
+    Decision,
+    GatePolicy,
+    GateResult,
+    decide,
+    run_gate,
+)
 from recsys_eval.metrics import (
     average_precision_at_k,
     catalog_coverage,
@@ -46,7 +53,10 @@ __all__ = [
     "METRIC_NAMES",
     "Aggregate",
     "CheckFailed",
+    "Decision",
     "Fixture",
+    "GatePolicy",
+    "GateResult",
     "Interaction",
     "Ranker",
     "RelevancePolicy",
@@ -58,11 +68,13 @@ __all__ = [
     "assert_within_unit_interval",
     "average_precision_at_k",
     "catalog_coverage",
+    "decide",
     "hit_rate_at_k",
     "ndcg_at_k",
     "precision_at_k",
     "preflight",
     "recall_at_k",
     "reciprocal_rank_at_k",
+    "run_gate",
     "score",
 ]
