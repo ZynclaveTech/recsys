@@ -1,0 +1,141 @@
+name: Publish
+
+# Releases are triggered by a GitHub Release whose tag names the package it
+# releases: `<package>-v<version>`, e.g. `recsys-eval-v0.1.0`.
+#
+# The prefix looks redundant with one package in the tree and stops looking
+# redundant the moment there are two. Retrofitting scoped tags after a plain
+# `v0.1.0` history means either a confusing mix or rewriting tags people have
+# already pinned, so it is scoped from the start.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to build, e.g. recsys-eval-v0.1.0"
+        required: true
+      target:
+        description: Where to publish
+        type: choice
+        options: [testpypi, pypi]
+        default: testpypi
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      package: ${{ steps.parse.outputs.package }}
+      version: ${{ steps.parse.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      # The tag is read from the environment rather than interpolated into the
+      # script body: `${{ }}` substitution happens before the shell sees the
+      # line, so a tag containing shell metacharacters would otherwise execute.
+      - name: Parse the tag and verify it matches the package version
+        id: parse
+        env:
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          uv run --no-project --python 3.12 - <<'PY' >> "$GITHUB_OUTPUT"
+          import os, pathlib, re, sys, tomllib
+
+          tag = os.environ["TAG"]
+          match = re.fullmatch(r"(?P<package>[a-z0-9][a-z0-9-]*)-v(?P<version>.+)", tag)
+          if not match:
+              sys.exit(f"Tag {tag!r} is not <package>-v<version>, e.g. recsys-eval-v0.1.0")
+
+          package, version = match["package"], match["version"]
+          manifest = pathlib.Path("packages") / package / "pyproject.toml"
+          if not manifest.is_file():
+              sys.exit(f"Tag names package {package!r} but {manifest} does not exist")
+
+          declared = tomllib.loads(manifest.read_text())["project"]["version"]
+          if declared != version:
+              # Catching this here costs a re-tag. Catching it at upload time
+              # costs the version number: PyPI will not accept a re-upload.
+              sys.exit(
+                  f"Tag says {version!r} but {manifest} declares {declared!r}. "
+                  "Bump the version and re-tag."
+              )
+
+          print(f"package={package}")
+          print(f"version={version}")
+          PY
+
+      # PACKAGE goes through the environment rather than into the command line.
+      # The parse step already constrains it to [a-z0-9-], so this is belt and
+      # braces -- but a `${{ }}` inside a `run:` body is substituted before the
+      # shell reads the line, and that is a pattern worth never having.
+      - name: Build
+        env:
+          PACKAGE: ${{ steps.parse.outputs.package }}
+        run: uv build --package "$PACKAGE"
+
+      - name: Check the metadata
+        run: uvx twine check dist/*
+
+      # The tests already ran on the commit, but a release builds from a tag
+      # and installs from a wheel. Neither of those is what CI exercised, and a
+      # packaging mistake -- a missing module, a bad entry point -- is invisible
+      # until someone pip-installs it.
+      - name: Smoke-test the built wheel
+        run: |
+          uv venv /tmp/smoke
+          VIRTUAL_ENV=/tmp/smoke uv pip install dist/*.whl
+          /tmp/smoke/bin/python - <<'PY'
+          import recsys_eval as r
+          missing = [n for n in r.__all__ if not hasattr(r, n)]
+          assert not missing, missing
+          assert r.ndcg_at_k(["a"], {"a": 1.0}, 1) == 1.0
+          print("wheel OK:", r.__version__, f"({len(r.__all__)} exports)")
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+
+    # Trusted publishing: PyPI verifies this workflow's OIDC identity, so there
+    # is no API token to leak or rotate. Configure the publisher once at
+    # https://pypi.org/manage/account/publishing/ with:
+    #   owner ZynclaveTech, repo recsys, workflow publish.yml, environment as below.
+    environment:
+      name: ${{ (github.event_name == 'workflow_dispatch' && inputs.target) || 'pypi' }}
+      url: https://pypi.org/p/${{ needs.build.outputs.package }}
+
+    permissions:
+      id-token: write
+      # Required so the action can attach build provenance attestations.
+      attestations: write
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to TestPyPI
+        if: github.event_name == 'workflow_dispatch' && inputs.target == 'testpypi'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+
+      - name: Publish to PyPI
+        if: github.event_name == 'release' || inputs.target == 'pypi'
+        uses: pypa/gh-action-pypi-publish@release/v1
