@@ -1,0 +1,51 @@
+[project]
+name = "recsys-workspace"
+version = "0.0.0"
+description = "Workspace root. Not published; see packages/ for the published distributions."
+requires-python = ">=3.10"
+# Members are listed here so `uv sync` installs them editable into the dev
+# environment. Published packages declare their own dependencies; nothing in
+# this file is part of any distribution.
+dependencies = ["recsys-eval"]
+
+[tool.uv.workspace]
+members = ["packages/*"]
+
+[tool.uv.sources]
+recsys-eval = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "hypothesis>=6.100",
+    "mypy>=1.11",
+    "ruff>=0.6",
+]
+
+# ---------------------------------------------------------------------------
+# Shared tool configuration. Packages inherit this; none of them redefine it.
+# ---------------------------------------------------------------------------
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+src = ["packages/recsys-eval/src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "SIM", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+# Property-based tests assert on bounds, not on named intermediates.
+"**/tests/*" = ["N806"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+# The public surface is fully annotated; anything that is not is a bug.
+disallow_untyped_defs = true
+warn_unreachable = true
+files = ["packages/recsys-eval/src", "packages/recsys-eval/tests"]
+
+[tool.pytest.ini_options]
+testpaths = ["packages/recsys-eval/tests"]
+addopts = "-q --strict-markers"
