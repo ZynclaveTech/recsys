@@ -10,6 +10,8 @@ See :mod:`recsys_eval.metrics` for the metric definitions.
 
 from __future__ import annotations
 
+import importlib.metadata
+
 from recsys_eval.checks import (
     CheckFailed,
     assert_deterministic,
@@ -45,7 +47,11 @@ from recsys_eval.scoring import (
 )
 from recsys_eval.types import Aggregate, Interaction, RelevancePolicy
 
-__version__ = "0.1.0.dev0"
+# Read from installed metadata rather than repeated here. Two hand-maintained
+# copies of a version drift, and the release workflow checks the tag against
+# pyproject.toml only -- so a stale literal would ship silently and misreport
+# itself in every bug report that quotes it.
+__version__ = importlib.metadata.version("recsys-eval")
 
 __all__ = [
     "DEFAULT_KS",
