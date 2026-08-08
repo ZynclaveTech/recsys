@@ -10,6 +10,7 @@ See :mod:`recsys_eval.metrics` for the metric definitions.
 
 from __future__ import annotations
 
+from recsys_eval.fixture import Fixture
 from recsys_eval.metrics import (
     average_precision_at_k,
     catalog_coverage,
@@ -19,10 +20,15 @@ from recsys_eval.metrics import (
     recall_at_k,
     reciprocal_rank_at_k,
 )
+from recsys_eval.types import Aggregate, Interaction, RelevancePolicy
 
 __version__ = "0.1.0.dev0"
 
 __all__ = [
+    "Aggregate",
+    "Fixture",
+    "Interaction",
+    "RelevancePolicy",
     "__version__",
     "average_precision_at_k",
     "catalog_coverage",
