@@ -9,6 +9,13 @@ from __future__ import annotations
 
 import importlib.metadata
 
+from recsys_candidates.exploration import (
+    ArmStore,
+    Beta,
+    InMemoryArmStore,
+    epsilon_greedy,
+    thompson_order,
+)
 from recsys_candidates.merge import (
     RRF_K,
     by_score,
@@ -24,15 +31,20 @@ __version__ = importlib.metadata.version("recsys-candidates")
 
 __all__ = [
     "RRF_K",
+    "ArmStore",
+    "Beta",
     "Budget",
     "Candidate",
+    "InMemoryArmStore",
     "Result",
     "Source",
     "__version__",
     "by_score",
+    "epsilon_greedy",
     "generate",
     "interleave",
     "max_per_key",
     "reciprocal_rank_fusion",
     "sources_of",
+    "thompson_order",
 ]
