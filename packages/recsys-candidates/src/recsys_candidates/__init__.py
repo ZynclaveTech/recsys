@@ -1,0 +1,32 @@
+"""Composable candidate generation for recommender systems.
+
+Built around one position: sources do not share a score scale, so merging on
+score is wrong by default. Ranks are comparable; scores are not. See
+:mod:`recsys_candidates.merge`.
+"""
+
+from __future__ import annotations
+
+import importlib.metadata
+
+from recsys_candidates.merge import (
+    RRF_K,
+    by_score,
+    interleave,
+    reciprocal_rank_fusion,
+    sources_of,
+)
+from recsys_candidates.types import Budget, Candidate
+
+__version__ = importlib.metadata.version("recsys-candidates")
+
+__all__ = [
+    "RRF_K",
+    "Budget",
+    "Candidate",
+    "__version__",
+    "by_score",
+    "interleave",
+    "reciprocal_rank_fusion",
+    "sources_of",
+]

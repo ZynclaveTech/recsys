@@ -8,6 +8,7 @@ resolution-markers = [
 
 [manifest]
 members = [
+    "recsys-candidates",
     "recsys-eval",
     "recsys-workspace",
 ]
@@ -433,6 +434,11 @@ wheels = [
 ]
 
 [[package]]
+name = "recsys-candidates"
+version = "0.1.0.dev0"
+source = { editable = "packages/recsys-candidates" }
+
+[[package]]
 name = "recsys-eval"
 version = "0.1.1"
 source = { editable = "packages/recsys-eval" }
@@ -442,6 +448,7 @@ name = "recsys-workspace"
 version = "0.0.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "recsys-candidates" },
     { name = "recsys-eval" },
 ]
 
@@ -454,7 +461,10 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "recsys-eval", editable = "packages/recsys-eval" }]
+requires-dist = [
+    { name = "recsys-candidates", editable = "packages/recsys-candidates" },
+    { name = "recsys-eval", editable = "packages/recsys-eval" },
+]
 
 [package.metadata.requires-dev]
 dev = [
