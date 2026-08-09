@@ -87,19 +87,26 @@ jobs:
         run: uvx twine check dist/*
 
       # The tests already ran on the commit, but a release builds from a tag
-      # and installs from a wheel. Neither of those is what CI exercised, and a
-      # packaging mistake -- a missing module, a bad entry point -- is invisible
-      # until someone pip-installs it.
+      # and installs from a wheel. Neither is what CI exercised, and a
+      # packaging mistake is invisible until someone pip-installs it.
+      #
+      # Derived from the package name rather than hardcoded: this step used to
+      # import recsys_eval unconditionally and failed the first time a second
+      # package was released, which is the right failure but the wrong reason.
       - name: Smoke-test the built wheel
+        env:
+          PACKAGE: ${{ steps.parse.outputs.package }}
         run: |
           uv venv /tmp/smoke
           VIRTUAL_ENV=/tmp/smoke uv pip install dist/*.whl
-          /tmp/smoke/bin/python - <<'PY'
-          import recsys_eval as r
-          missing = [n for n in r.__all__ if not hasattr(r, n)]
+          MODULE="${PACKAGE//-/_}" /tmp/smoke/bin/python - <<'PY'
+          import importlib, os
+
+          module = importlib.import_module(os.environ["MODULE"])
+          missing = [n for n in module.__all__ if not hasattr(module, n)]
           assert not missing, missing
-          assert r.ndcg_at_k(["a"], {"a": 1.0}, 1) == 1.0
-          print("wheel OK:", r.__version__, f"({len(r.__all__)} exports)")
+          print(f"wheel OK: {module.__name__} {module.__version__} "
+                f"({len(module.__all__)} exports)")
           PY
 
       - uses: actions/upload-artifact@v4
