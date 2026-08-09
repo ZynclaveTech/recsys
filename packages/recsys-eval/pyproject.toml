@@ -1,9 +1,10 @@
 [project]
 name = "recsys-eval"
-version = "0.1.0"
+version = "0.1.1"
 description = "Offline evaluation and promotion gating for recommender systems."
 readme = "README.md"
 requires-python = ">=3.10"
+authors = [{ name = "Zynclave Tech", email = "info@zynclave.com" }]
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 keywords = [
@@ -28,7 +29,9 @@ classifiers = [
 dependencies = []
 
 [project.urls]
+Homepage = "https://vync.live"
 Source = "https://github.com/ZynclaveTech/recsys"
+Documentation = "https://github.com/ZynclaveTech/recsys/blob/main/docs/hazards.md"
 Issues = "https://github.com/ZynclaveTech/recsys/issues"
 
 [build-system]
