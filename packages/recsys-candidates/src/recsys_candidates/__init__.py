@@ -16,6 +16,8 @@ from recsys_candidates.merge import (
     reciprocal_rank_fusion,
     sources_of,
 )
+from recsys_candidates.pipeline import Result, generate, max_per_key
+from recsys_candidates.protocols import Source
 from recsys_candidates.types import Budget, Candidate
 
 __version__ = importlib.metadata.version("recsys-candidates")
@@ -24,9 +26,13 @@ __all__ = [
     "RRF_K",
     "Budget",
     "Candidate",
+    "Result",
+    "Source",
     "__version__",
     "by_score",
+    "generate",
     "interleave",
+    "max_per_key",
     "reciprocal_rank_fusion",
     "sources_of",
 ]
