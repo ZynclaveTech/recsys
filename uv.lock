@@ -435,7 +435,7 @@ wheels = [
 
 [[package]]
 name = "recsys-candidates"
-version = "0.1.0.dev0"
+version = "0.1.0"
 source = { editable = "packages/recsys-candidates" }
 
 [[package]]

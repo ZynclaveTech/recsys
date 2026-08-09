@@ -34,8 +34,10 @@ jobs:
 
       # The example is documentation that can rot. Running it in CI is the only
       # thing that keeps a README honest.
-      - name: Run the quickstart example
-        run: uv run --python ${{ matrix.python-version }} python examples/quickstart.py
+      - name: Run the examples
+        run: |
+          uv run --python ${{ matrix.python-version }} python examples/quickstart.py
+          uv run --python ${{ matrix.python-version }} python examples/candidates_quickstart.py
 
   lint:
     runs-on: ubuntu-latest
@@ -65,8 +67,10 @@ jobs:
 
       - uses: astral-sh/setup-uv@v5
 
-      - name: Build the distribution
-        run: uv build --package recsys-eval
+      - name: Build the distributions
+        run: |
+          uv build --package recsys-eval
+          uv build --package recsys-candidates
 
       # Catches the metadata problems that only surface at upload time, when
       # the version number has already been burned.

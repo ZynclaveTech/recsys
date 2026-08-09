@@ -9,7 +9,7 @@ others.
 | Package | Status | What it does |
 |---|---|---|
 | [`recsys-eval`](packages/recsys-eval) | alpha | Offline evaluation and promotion gating |
-| _candidate generation_ | planned | |
+| [`recsys-candidates`](packages/recsys-candidates) | alpha | Composable candidate generation and retrieval |
 | _ANN / vector search wrappers_ | planned | |
 | _reference two-tower implementation_ | planned | |
 
@@ -94,9 +94,11 @@ and `label_coverage` reports exactly where that ceiling sits.
 
 ### Documentation
 
-- [Hazards](docs/hazards.md) — ten ways a promotion gate silently stops
-  measuring anything real, and why nearly all of them bias toward promoting the
-  candidate.
+- [Evaluation hazards](docs/hazards.md) — ten ways a promotion gate silently
+  stops measuring anything real, and why nearly all of them bias toward
+  promoting the candidate.
+- [Retrieval hazards](docs/retrieval-hazards.md) — nine ways candidate
+  generation degrades into something that still looks like a product.
 - [Package README](packages/recsys-eval/README.md) — API reference.
 
 ## Development
