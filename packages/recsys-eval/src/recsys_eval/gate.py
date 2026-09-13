@@ -22,13 +22,14 @@ from __future__ import annotations
 
 import enum
 import logging
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
 from recsys_eval.fixture import Fixture
 from recsys_eval.protocols import Ranker
 from recsys_eval.scoring import DEFAULT_KS, DEFAULT_METRICS, Scores, score
+from recsys_eval.stats import PairedComparison, paired_bootstrap
 from recsys_eval.types import ItemT, UserT
 
 __all__ = ["Decision", "GatePolicy", "GateResult", "decide", "run_gate"]
@@ -77,10 +78,13 @@ class GatePolicy:
             them against each other, so a single-metric gate can be walked
             straight past.
         tolerance: Relative drop allowed before a metric counts as a
-            regression. ``0.02`` means a 2% fall is noise. Set it from your own
-            run-to-run variance, measured -- not guessed. If you have not
-            measured it, run the same model through the gate on consecutive
-            days and look at the spread.
+            regression. ``0.02`` means a 2% fall is noise. With the default
+            point comparison, set it from your own run-to-run variance,
+            measured -- not guessed. If you have not measured it, run the same
+            model through the gate on consecutive days and look at the spread.
+            With ``bootstrap_samples`` set, it is the drop the *whole
+            confidence interval* must lie beyond, and noise is handled by the
+            interval instead.
         min_users: Below this many scored users, refuse to decide. A gate
             reading a handful of users is reading noise and will flip verdicts
             at random.
@@ -99,6 +103,16 @@ class GatePolicy:
             *after* the worker was told to stop, and risk being killed by the
             hard limit mid-upload. Pass ``(SoftTimeLimitExceeded,)`` and it
             propagates, so the task fails cleanly and nothing is promoted.
+        bootstrap_samples: ``None`` (the default) compares the two point
+            estimates. A number switches to a paired bootstrap over per-user
+            values with that many resamples: a metric regresses only when its
+            entire confidence interval lies below ``-tolerance``, and is
+            suspicious only when its entire interval lies above
+            ``max_improvement``. Use it whenever the metric is sparse -- a
+            point comparison on a few thousand users of a feed reads noise as
+            regressions. Needs per-user scores; :func:`run_gate` collects them.
+        confidence: Two-sided interval width for the bootstrap.
+        seed: Bootstrap resampling seed, so a verdict can be reproduced.
     """
 
     gated_metrics: Sequence[str]
@@ -107,6 +121,9 @@ class GatePolicy:
     max_improvement: float | None = 0.5
     fail_open: bool = True
     reraise: tuple[type[BaseException], ...] = ()
+    bootstrap_samples: int | None = None
+    confidence: float = 0.95
+    seed: int = 0
 
     def __post_init__(self) -> None:
         if not self.gated_metrics:
@@ -125,6 +142,14 @@ class GatePolicy:
             raise ValueError(
                 f"max_improvement must be positive or None, got {self.max_improvement}."
             )
+        if self.bootstrap_samples is not None and self.bootstrap_samples < 100:
+            raise ValueError(
+                f"bootstrap_samples must be >= 100 or None, got "
+                f"{self.bootstrap_samples}. Fewer resamples leave the tail "
+                "percentiles too noisy to decide on."
+            )
+        if not 0.0 < self.confidence < 1.0:
+            raise ValueError(f"confidence must be in (0, 1), got {self.confidence}.")
 
 
 @dataclass(frozen=True)
@@ -140,6 +165,9 @@ class GateResult:
     reason: str
     candidate: Scores = field(default_factory=Scores)
     incumbent: Scores | None = None
+    comparisons: Mapping[str, PairedComparison] = field(default_factory=dict)
+    """Per gated metric, the paired interval behind the verdict. Empty for a
+    point comparison."""
 
     @property
     def promoted(self) -> bool:
@@ -154,6 +182,7 @@ class GateResult:
             "reason": self.reason,
             "candidate": self.candidate.as_dict(),
             "incumbent": self.incumbent.as_dict() if self.incumbent else None,
+            "comparisons": {m: c.as_dict() for m, c in self.comparisons.items()},
         }
 
 
@@ -208,8 +237,12 @@ def decide(
             "missing metric as 'no regression' would silently disable the gate."
         )
 
+    if policy.bootstrap_samples is not None:
+        _check_pairable(candidate, incumbent, policy.gated_metrics)
+
     regressions: list[str] = []
     suspicious: list[str] = []
+    comparisons: dict[str, PairedComparison] = {}
     comparable = 0
 
     for metric in policy.gated_metrics:
@@ -223,6 +256,34 @@ def decide(
 
         comparable += 1
         change = (new - base) / base
+
+        if policy.bootstrap_samples is not None:
+            comparison = paired_bootstrap(
+                candidate.per_user[metric],
+                incumbent.per_user[metric],
+                metric=metric,
+                samples=policy.bootstrap_samples,
+                confidence=policy.confidence,
+                seed=policy.seed,
+            )
+            if comparison is None:  # pragma: no cover - base > 0 was checked
+                comparable -= 1
+                continue
+            comparisons[metric] = comparison
+            if comparison.high < -policy.tolerance:
+                regressions.append(
+                    f"{comparison.describe()}: the whole interval is below "
+                    f"-{policy.tolerance:.1%}"
+                )
+            elif (
+                policy.max_improvement is not None
+                and comparison.low > policy.max_improvement
+            ):
+                suspicious.append(
+                    f"{comparison.describe()}: the whole interval is above the "
+                    f"{policy.max_improvement:.1%} plausibility limit"
+                )
+            continue
 
         if -change > policy.tolerance:
             regressions.append(
@@ -247,7 +308,11 @@ def decide(
 
     if regressions:
         return GateResult(
-            Decision.REJECTED, "; ".join(regressions), candidate, incumbent
+            Decision.REJECTED,
+            "; ".join(regressions),
+            candidate,
+            incumbent,
+            comparisons,
         )
 
     if suspicious:
@@ -258,15 +323,48 @@ def decide(
             "not scored fairly -- check that it loaded its trained weights",
             candidate,
             incumbent,
+            comparisons,
         )
 
-    return GateResult(
-        Decision.PROMOTED,
-        f"no regression beyond {policy.tolerance:.1%} on "
-        f"{comparable} compared metric(s)",
-        candidate,
-        incumbent,
+    if policy.bootstrap_samples is not None:
+        reason = (
+            f"no metric confidently worse than -{policy.tolerance:.1%} "
+            f"({policy.confidence:.0%} CI) on {comparable} compared metric(s): "
+            + "; ".join(c.describe() for c in comparisons.values())
+        )
+    else:
+        reason = (
+            f"no regression beyond {policy.tolerance:.1%} on "
+            f"{comparable} compared metric(s)"
+        )
+    return GateResult(Decision.PROMOTED, reason, candidate, incumbent, comparisons)
+
+
+def _check_pairable(
+    candidate: Scores, incumbent: Scores, gated_metrics: Sequence[str]
+) -> None:
+    """A paired comparison needs per-user values for the same users.
+
+    Both are configuration errors, not model outcomes, so they raise: scores
+    from two different fixtures would pair one user's value with another's and
+    produce a confident interval about nothing.
+    """
+    missing = sorted(
+        m
+        for m in gated_metrics
+        if m not in candidate.per_user or m not in incumbent.per_user
     )
+    if missing:
+        raise ValueError(
+            f"bootstrap_samples is set but per-user values are missing for "
+            f"{', '.join(missing)}. Score with score(..., per_user=True); "
+            "run_gate does this for you."
+        )
+    if candidate.users != incumbent.users:
+        raise ValueError(
+            "The candidate and incumbent were scored on different users, so "
+            "their per-user values cannot be paired. Score both on one fixture."
+        )
 
 
 def run_gate(
@@ -319,9 +417,12 @@ def run_gate(
                 None,
             )
         else:
-            candidate_scores = score(candidate, fixture, metrics=metrics, ks=ks)
+            paired = policy.bootstrap_samples is not None
+            candidate_scores = score(
+                candidate, fixture, metrics=metrics, ks=ks, per_user=paired
+            )
             incumbent_scores = (
-                score(incumbent, fixture, metrics=metrics, ks=ks)
+                score(incumbent, fixture, metrics=metrics, ks=ks, per_user=paired)
                 if incumbent is not None
                 else None
             )
@@ -347,6 +448,7 @@ def run_gate(
             f"{context}: {result.reason}",
             result.candidate,
             result.incumbent,
+            result.comparisons,
         )
 
     if result.decision is Decision.REJECTED:

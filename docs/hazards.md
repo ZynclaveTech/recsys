@@ -206,6 +206,28 @@ with extra steps.
 
 ---
 
+## 11. A point tolerance on a sparse metric reads noise
+
+Engagement is sparse. On the feed this library was built for, 49 to 81 of
+7,276 holdout users had any hit in a model's top ten. Scored on a 2,000-user
+sample, NDCG@10's standard deviation was 22-26% of its mean; Recall@50's was
+12-15%. A gate comparing two point estimates against a 2% tolerance rejected
+a model of identical quality 50-83% of the time -- and because a regression
+on *either* gated metric blocks, noise favours whichever model is already
+serving.
+
+**The trap:** tightening the tolerance to "be safe" makes it worse; loosening
+it to 25% lets real regressions through. No fixed threshold is right, because
+the noise depends on the fixture, not the model.
+
+**Do:** score every eligible user, keep per-user values, and decide on a
+paired bootstrap interval (`GatePolicy(bootstrap_samples=2000)`). Reject only
+when the whole interval lies beyond the tolerance. The same applies to
+choosing between training recipes: one run per recipe is one draw, so compare
+several seeds per recipe on one fixture before believing a ranking.
+
+---
+
 ## A minimum viable checklist
 
 Before trusting any offline number:
@@ -217,5 +239,6 @@ Before trusting any offline number:
 - [ ] Is `label_coverage` reported next to every result?
 - [ ] Is the incumbent verified to have actually loaded its weights?
 - [ ] Is every ungated promotion recorded with a reason someone reads?
+- [ ] Is the verdict an interval, not two point estimates and a threshold?
 
 The first four take an afternoon and catch most of this page.

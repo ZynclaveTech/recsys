@@ -45,6 +45,7 @@ from recsys_eval.scoring import (
     Scores,
     score,
 )
+from recsys_eval.stats import PairedComparison, paired_bootstrap
 from recsys_eval.types import Aggregate, Interaction, RelevancePolicy
 
 # Read from installed metadata rather than repeated here. Two hand-maintained
@@ -64,6 +65,7 @@ __all__ = [
     "GatePolicy",
     "GateResult",
     "Interaction",
+    "PairedComparison",
     "Ranker",
     "RelevancePolicy",
     "Scores",
@@ -77,6 +79,7 @@ __all__ = [
     "decide",
     "hit_rate_at_k",
     "ndcg_at_k",
+    "paired_bootstrap",
     "precision_at_k",
     "preflight",
     "recall_at_k",
