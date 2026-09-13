@@ -440,7 +440,7 @@ source = { editable = "packages/recsys-candidates" }
 
 [[package]]
 name = "recsys-eval"
-version = "0.1.1"
+version = "0.2.0"
 source = { editable = "packages/recsys-eval" }
 
 [[package]]

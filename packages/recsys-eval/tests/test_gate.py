@@ -345,3 +345,111 @@ def test_a_broken_recorder_does_not_take_down_the_gate(
         result = gate(recorder=explode)
     assert result.decision is Decision.PROMOTED
     assert "Could not record" in caplog.text
+
+
+# --------------------------------------------------------------------------
+# Paired bootstrap mode
+# --------------------------------------------------------------------------
+
+BOOTSTRAP = GatePolicy(
+    gated_metrics=["ndcg@2"], min_users=0, max_improvement=None, bootstrap_samples=500
+)
+
+
+def paired(values: Sequence[float], users: Sequence[str] | None = None) -> Scores:
+    users = users or [f"u{i}" for i in range(len(values))]
+    return Scores(
+        values={"ndcg@2": sum(values) / len(values)},
+        scored_users=len(values),
+        label_coverage=1.0,
+        users=tuple(users),
+        per_user={"ndcg@2": tuple(values)},
+    )
+
+
+def sparse_values(n: int, rate: float, seed: int) -> list[float]:
+    import random
+
+    rng = random.Random(seed)
+    return [rng.random() if rng.random() < rate else 0.0 for _ in range(n)]
+
+
+def test_bootstrap_promotes_an_equal_model_that_a_point_comparison_rejects() -> None:
+    """Same quality, different lucky hits: the case this mode exists for."""
+    incumbent = sparse_values(2000, 0.03, 11)
+    candidate = sparse_values(2000, 0.03, 12)
+    point = GatePolicy(gated_metrics=["ndcg@2"], min_users=0, max_improvement=None)
+    cand, inc = paired(candidate), paired(incumbent)
+    assert decide(cand, inc, policy=point).decision is Decision.REJECTED
+
+    result = decide(cand, inc, policy=BOOTSTRAP)
+    assert result.decision is Decision.PROMOTED
+    assert "no metric confidently worse" in result.reason
+    comparison = result.comparisons["ndcg@2"]
+    assert comparison.low < 0.0 < comparison.high
+
+
+def test_bootstrap_rejects_a_confidently_worse_model() -> None:
+    incumbent = sparse_values(3000, 0.1, 13)
+    result = decide(
+        paired([v * 0.6 for v in incumbent]), paired(incumbent), policy=BOOTSTRAP
+    )
+    assert result.decision is Decision.REJECTED
+    assert "the whole interval is below -2.0%" in result.reason
+    assert result.comparisons["ndcg@2"].high < -0.02
+
+
+def test_bootstrap_suspicion_needs_the_whole_interval_above_the_limit() -> None:
+    policy = GatePolicy(
+        gated_metrics=["ndcg@2"],
+        min_users=0,
+        max_improvement=0.5,
+        bootstrap_samples=500,
+    )
+    incumbent = sparse_values(3000, 0.1, 14)
+    result = decide(
+        paired([v * 3 for v in incumbent]), paired(incumbent), policy=policy
+    )
+    assert result.decision is Decision.SUSPICIOUS
+    assert "plausibility limit" in result.reason
+
+
+def test_bootstrap_without_per_user_values_raises() -> None:
+    with pytest.raises(ValueError, match="per-user values are missing"):
+        decide(scores(0.5), scores(0.5), policy=BOOTSTRAP)
+
+
+def test_bootstrap_on_different_users_raises() -> None:
+    a = paired([0.1, 0.2], users=["u1", "u2"])
+    b = paired([0.1, 0.2], users=["u1", "u3"])
+    with pytest.raises(ValueError, match="different users"):
+        decide(a, b, policy=BOOTSTRAP)
+
+
+@pytest.mark.parametrize("samples", [0, 99])
+def test_bootstrap_samples_floor(samples: int) -> None:
+    with pytest.raises(ValueError, match="bootstrap_samples"):
+        GatePolicy(gated_metrics=["ndcg@2"], bootstrap_samples=samples)
+
+
+def test_confidence_is_validated() -> None:
+    with pytest.raises(ValueError, match="confidence"):
+        GatePolicy(gated_metrics=["ndcg@2"], confidence=1.0)
+
+
+def test_run_gate_collects_per_user_scores_for_a_bootstrap_policy() -> None:
+    fixture = make_fixture({"u1": ["i1"], "u2": ["i2"], "u3": ["i3"]})
+    result = run_gate(
+        PoolRanker(),
+        PoolRanker(),
+        fixture,
+        policy=GatePolicy(gated_metrics=["ndcg@2"], min_users=0, bootstrap_samples=200),
+        metrics=["ndcg"],
+        ks=[2],
+        context="job-1",
+    )
+    assert result.decision is Decision.PROMOTED
+    assert result.reason.startswith("job-1: ")
+    assert result.candidate.users == fixture.users
+    assert "ndcg@2" in result.comparisons
+    assert result.as_dict()["comparisons"]["ndcg@2"]["users"] == 3

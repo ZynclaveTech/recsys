@@ -291,3 +291,28 @@ def test_hand_built_fixture_without_labels_is_survivable() -> None:
 def test_default_scores_are_empty() -> None:
     assert Scores().values == {}
     assert Scores().scored_users == 0
+
+
+# --------------------------------------------------------------------------
+# Per-user values
+# --------------------------------------------------------------------------
+
+
+def test_per_user_values_are_off_by_default() -> None:
+    result = score(PoolRanker(), make_fixture(), metrics=["ndcg"], ks=[2])
+    assert result.users == ()
+    assert result.per_user == {}
+
+
+def test_per_user_values_average_to_the_reported_metric() -> None:
+    fixture = make_fixture({"u1": ["i1"], "u2": ["i4"], "u3": ["i2", "i3"]})
+    result = score(
+        PoolRanker(), fixture, metrics=["ndcg", "recall"], ks=[1, 4], per_user=True
+    )
+    assert result.users == fixture.users
+    for key in ("ndcg@1", "ndcg@4", "recall@1", "recall@4"):
+        values = result.per_user[key]
+        assert len(values) == len(fixture.users)
+        assert math.isclose(sum(values) / len(values), result.values[key])
+    assert "coverage@1" not in result.per_user
+    assert "per_user" not in result.as_dict()

@@ -71,11 +71,19 @@ class Scores:
             Recall, and it belongs next to the metrics rather than somewhere
             else, because a score that fell because the pool shrank looks
             identical to one that fell because the model got worse.
+        users: The scored users, in scoring order. Empty unless ``score`` was
+            called with ``per_user=True``.
+        per_user: Metric name -> one value per entry of ``users``, in the same
+            order. What a paired comparison resamples; see
+            :func:`recsys_eval.stats.paired_bootstrap`. Empty unless requested.
+            Kept out of :meth:`as_dict`, which is meant for an audit row.
     """
 
     values: Mapping[str, float] = field(default_factory=dict)
     scored_users: int = 0
     label_coverage: float = 0.0
+    users: tuple[Any, ...] = ()
+    per_user: Mapping[str, tuple[float, ...]] = field(default_factory=dict)
 
     def __getitem__(self, key: str) -> float:
         return self.values[key]
@@ -114,6 +122,7 @@ def score(
     *,
     metrics: Sequence[str] = DEFAULT_METRICS,
     ks: Sequence[int] = DEFAULT_KS,
+    per_user: bool = False,
 ) -> Scores:
     """Score ``ranker`` over ``fixture``.
 
@@ -135,6 +144,9 @@ def score(
             comparison.
         metrics: Names from :data:`METRIC_NAMES`.
         ks: Cutoffs to report at.
+        per_user: Also keep every user's value for every metric, in
+            :attr:`Scores.per_user`. Needed for a paired comparison; costs one
+            float per user per metric.
 
     Returns:
         :class:`Scores`. Every value is in ``[0, 1]``.
@@ -164,6 +176,8 @@ def score(
     totals = {f"{m}@{k}": 0.0 for m in metrics for k in ks}
     surfaced: dict[int, set[ItemT]] = {k: set() for k in ks}
     scored_users = 0
+    kept_users: list[UserT] = []
+    kept: dict[str, list[float]] = {key: [] for key in totals}
 
     for user in fixture.users:
         gains = fixture.ground_truth.get(user, {})
@@ -186,8 +200,12 @@ def score(
                 else:
                     value = _BINARY[name](ranked, relevant, k)
                 totals[f"{name}@{k}"] += value
+                if per_user:
+                    kept[f"{name}@{k}"].append(value)
 
         scored_users += 1
+        if per_user:
+            kept_users.append(user)
 
     if scored_users == 0:
         values = dict.fromkeys(totals, 0.0)
@@ -206,4 +224,6 @@ def score(
         values=values,
         scored_users=scored_users,
         label_coverage=fixture.label_coverage,
+        users=tuple(kept_users),
+        per_user={key: tuple(v) for key, v in kept.items()} if per_user else {},
     )

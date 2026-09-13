@@ -2,8 +2,9 @@
 
 Offline evaluation and promotion gating for recommender systems.
 
-> **Status: alpha.** Feature-complete for v0.1 — metrics, fixture, ranker
-> protocol, scoring, preflight checks, and promotion gate. The API may still
+> **Status: alpha.** Feature-complete for v0.2 — metrics, fixture, ranker
+> protocol, scoring, preflight checks, and a promotion gate with an optional
+> paired-bootstrap decision. The API may still
 > move before 1.0.
 
 Built around one claim: the useful question is usually not *"how good is this
@@ -37,6 +38,32 @@ verdict = run_gate(
 if verdict.promoted:
     deploy(candidate)
 ```
+
+### When the metric is sparse, decide on an interval
+
+On a real feed only a few dozen of several thousand users have any hit in the
+top ten, so NDCG@10 moves by a quarter of its own value from one user sample
+to the next. A fixed 2% tolerance on two point estimates then rejects an
+identical model more often than not. Set `bootstrap_samples` and the gate
+compares the models user by user instead:
+
+```python
+policy = GatePolicy(
+    gated_metrics=["ndcg@10", "recall@50"],
+    bootstrap_samples=2000,  # paired bootstrap over per-user values
+    confidence=0.95,
+    tolerance=0.02,  # reject only if the WHOLE interval is below -2%
+)
+verdict = run_gate(candidate, incumbent, fixture, policy=policy)
+verdict.comparisons["ndcg@10"].describe()
+# 'ndcg@10 0.0038 -> 0.0016 (-57.0%, 95% CI -70.2% to -49.7%)'
+```
+
+Pairing is what makes this affordable: both models are scored on the same
+users, so user-level noise shared by both cancels out. Score every eligible
+user rather than a sample -- the interval narrows with users, and sampling
+throws the width away. `paired_bootstrap` is exported for comparing any two
+per-user series, e.g. training recipes across seeds.
 
 Implementing a ranker is two methods:
 
